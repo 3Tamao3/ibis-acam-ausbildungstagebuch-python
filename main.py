@@ -1,4 +1,6 @@
 import streamlit as st
+import json
+from pathlib import Path
 from io import BytesIO
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
@@ -7,7 +9,31 @@ from reportlab.platypus import Paragraph, Frame
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.styles import ParagraphStyle
 
-#125 char only for tätigkeiten, 10 char datum, 100 char bemerkung 
+#125 char only for tätigkeiten, 10 char datum, 100 char bemerkung
+
+# Eingaben zwischenspeichern
+SPEICHER_DATEI = Path(__file__).parent / "gespeicherte_eingaben.json"
+
+FELDER = ["lehrlingName", "kalenderwoche", "vomDatum", "bisDatum", "gruppe", "trainer"]
+for i in range(1, 6):
+    FELDER += [f"datum{i}", f"trainer{i}", f"tätigkeit{i}", f"bemerkungen{i}"]
+
+def eingabenSpeichern():
+    daten = {feld: st.session_state.get(feld, "") for feld in FELDER}
+    SPEICHER_DATEI.write_text(json.dumps(daten, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def eingabenLöschen():
+    SPEICHER_DATEI.unlink(missing_ok=True)
+    for feld in FELDER:
+        st.session_state[feld] = ""
+
+# Gespeicherte Eingaben beim Start einmal laden
+if "geladen" not in st.session_state:
+    st.session_state["geladen"] = True
+    if SPEICHER_DATEI.exists():
+        gespeichert = json.loads(SPEICHER_DATEI.read_text(encoding="utf-8"))
+        for feld in FELDER:
+            st.session_state[feld] = gespeichert.get(feld, "")
 
 col1, col2, col3 = st.columns([1,4,1])
 
@@ -19,70 +45,70 @@ col1, col2, col3, col4 = st.columns(4)
 
 # Allgemeine Informationen
 with col1:
-    lehrlingName = st.text_input("Lehrling: ")
+    lehrlingName = st.text_input("Lehrling: ", key="lehrlingName")
 with col2:
-    kalenderwoche = st.text_input("Kalenderwoche: ")
+    kalenderwoche = st.text_input("Kalenderwoche: ", key="kalenderwoche")
 with col3:
-    vomDatum = st.text_input("Vom: ", max_chars=10)
+    vomDatum = st.text_input("Vom: ", max_chars=10, key="vomDatum")
 with col4:
-    bisDatum = st.text_input("Bis: ", max_chars=10)
+    bisDatum = st.text_input("Bis: ", max_chars=10, key="bisDatum")
 col1, col2 = st.columns(2)
 with col1:
-    gruppe = st.text_input("Gruppe: ")
+    gruppe = st.text_input("Gruppe: ", key="gruppe")
 with col2:
-    trainer = st.text_input("Trainer/-in: ")
+    trainer = st.text_input("Trainer/-in: ", key="trainer")
 
 col1, col2, col3, col4 = st.columns([1, 1, 2, 1])
 
 # Tätigkeiten und Bemerkungen #1
 with col1:
-    datum1 = st.text_input("Datum #1: ", max_chars=10)
+    datum1 = st.text_input("Datum #1: ", max_chars=10, key="datum1")
 with col2:
-    trainer1 = st.text_input("Trainer/-in #1: ", max_chars=12)
+    trainer1 = st.text_input("Trainer/-in #1: ", max_chars=12, key="trainer1")
 with col3:
-    tätigkeit1 = st.text_input("Tätigkeit #1: ", max_chars=125)
+    tätigkeit1 = st.text_input("Tätigkeit #1: ", max_chars=125, key="tätigkeit1")
 with col4:
-    bemerkungen1 = st.text_input("Bemerkungen #1: ", max_chars=100)
+    bemerkungen1 = st.text_input("Bemerkungen #1: ", max_chars=100, key="bemerkungen1")
 
 # Tätigkeiten und Bemerkungen #2
 with col1:
-    datum2 = st.text_input("Datum #2: ", max_chars=10)
+    datum2 = st.text_input("Datum #2: ", max_chars=10, key="datum2")
 with col2:
-    trainer2 = st.text_input("Trainer/-in #2: ", max_chars=12)
+    trainer2 = st.text_input("Trainer/-in #2: ", max_chars=12, key="trainer2")
 with col3:
-    tätigkeit2 = st.text_input("Tätigkeit #2: ", max_chars=125)
+    tätigkeit2 = st.text_input("Tätigkeit #2: ", max_chars=125, key="tätigkeit2")
 with col4:
-    bemerkungen2 = st.text_input("Bemerkungen #2: ", max_chars=100)
+    bemerkungen2 = st.text_input("Bemerkungen #2: ", max_chars=100, key="bemerkungen2")
 
 # Tätigkeiten und Bemerkungen #3
 with col1:
-    datum3 = st.text_input("Datum #3: ", max_chars=10)
+    datum3 = st.text_input("Datum #3: ", max_chars=10, key="datum3")
 with col2:
-    trainer3 = st.text_input("Trainer/-in #3: ", max_chars=12)
+    trainer3 = st.text_input("Trainer/-in #3: ", max_chars=12, key="trainer3")
 with col3:
-    tätigkeit3 = st.text_input("Tätigkeit #3: ", max_chars=125)
+    tätigkeit3 = st.text_input("Tätigkeit #3: ", max_chars=125, key="tätigkeit3")
 with col4:
-    bemerkungen3 =  st.text_input("Bemerkungen #3: ", max_chars=100)
+    bemerkungen3 = st.text_input("Bemerkungen #3: ", max_chars=100, key="bemerkungen3")
 
 # Tätigkeiten und Bemerkungen #4
 with col1:
-    datum4 = st.text_input("Datum #4: ", max_chars=10)
+    datum4 = st.text_input("Datum #4: ", max_chars=10, key="datum4")
 with col2:
-    trainer4 = st.text_input("Trainer/-in #4: ", max_chars=12)
+    trainer4 = st.text_input("Trainer/-in #4: ", max_chars=12, key="trainer4")
 with col3:
-    tätigkeit4 = st.text_input("Tätigkeit #4: ", max_chars=125)
+    tätigkeit4 = st.text_input("Tätigkeit #4: ", max_chars=125, key="tätigkeit4")
 with col4:
-    bemerkungen4 = st.text_input("Bemerkungen #4: ", max_chars=100)
+    bemerkungen4 = st.text_input("Bemerkungen #4: ", max_chars=100, key="bemerkungen4")
 
 # Tätigkeiten und Bemerkungen #5
 with col1:
-    datum5 = st.text_input("Datum #5: ", max_chars=10)
+    datum5 = st.text_input("Datum #5: ", max_chars=10, key="datum5")
 with col2:
-    trainer5 = st.text_input("Trainer/-in #5: ", max_chars=12)
+    trainer5 = st.text_input("Trainer/-in #5: ", max_chars=12, key="trainer5")
 with col3:
-    tätigkeit5 = st.text_input("Tätigkeit #5: ", max_chars=125)
+    tätigkeit5 = st.text_input("Tätigkeit #5: ", max_chars=125, key="tätigkeit5")
 with col4:
-    bemerkungen5 = st.text_input("Bemerkungen #5: ", max_chars=100)
+    bemerkungen5 = st.text_input("Bemerkungen #5: ", max_chars=100, key="bemerkungen5")
 
 # PDF erstellen
 def createPDF(lehrlingName, kalenderwoche, vomDatum, bisDatum, gruppe, trainer, datum1, trainer1, tätigkeit1, bemerkungen1, datum2, trainer2, tätigkeit2, bemerkungen2, datum3, trainer3, tätigkeit3, bemerkungen3, datum4, trainer4, tätigkeit4, bemerkungen4, datum5, trainer5, tätigkeit5, bemerkungen5) -> bytes:
@@ -318,7 +344,10 @@ def createPDF(lehrlingName, kalenderwoche, vomDatum, bisDatum, gruppe, trainer, 
     buffer.seek(0)
     return buffer.read()
 
-if st.button("Erstelle PDF"):
+if st.button("Eingaben speichern für später", on_click=eingabenSpeichern):
+    st.success("Eingaben gespeichert! Sie werden beim nächsten Start automatisch geladen.")
+
+if st.button("Erstelle PDF (Download)"):
     pdf_bytes = createPDF(lehrlingName, kalenderwoche, vomDatum, bisDatum, gruppe, trainer, datum1, trainer1, tätigkeit1, bemerkungen1, datum2, trainer2, tätigkeit2, bemerkungen2, datum3, trainer3, tätigkeit3, bemerkungen3, datum4, trainer4, tätigkeit4, bemerkungen4, datum5, trainer5, tätigkeit5, bemerkungen5)
     st.success("PDF erfolgreich erstellt!")
     st.download_button(
@@ -326,5 +355,6 @@ if st.button("Erstelle PDF"):
         data=pdf_bytes,
         file_name="Ausbildungstagebuch_" + lehrlingName + "_" + kalenderwoche + "_" + vomDatum + "-" + bisDatum + ".pdf",
         mime="application/pdf",
+        on_click=eingabenLöschen,
         use_container_width=True
         )
