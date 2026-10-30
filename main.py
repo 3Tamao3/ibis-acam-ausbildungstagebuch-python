@@ -1,5 +1,6 @@
 import streamlit as st
 import json
+from datetime import date, timedelta
 from pathlib import Path
 from io import BytesIO
 from reportlab.pdfgen import canvas
@@ -18,14 +19,81 @@ FELDER = ["lehrlingName", "kalenderwoche", "vomDatum", "bisDatum", "gruppe", "tr
 for i in range(1, 6):
     FELDER += [f"datum{i}", f"trainer{i}", f"tätigkeit{i}", f"bemerkungen{i}"]
 
+# Trainer-Felder sind Dropdowns, leer = None statt ""
+TRAINER_FELDER = ["trainer"] + [f"trainer{i}" for i in range(1, 6)]
+
 def eingabenSpeichern():
-    daten = {feld: st.session_state.get(feld, "") for feld in FELDER}
+    daten = {feld: st.session_state.get(feld) or "" for feld in FELDER}
     SPEICHER_DATEI.write_text(json.dumps(daten, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def eingabenLöschen():
     SPEICHER_DATEI.unlink(missing_ok=True)
     for feld in FELDER:
-        st.session_state[feld] = ""
+        st.session_state[feld] = None if feld in TRAINER_FELDER else ""
+
+# Trainer-Liste
+TRAINER_DATEI = Path(__file__).parent / "trainer.json"
+
+def trainerLaden():
+    if TRAINER_DATEI.exists():
+        # A -> Z, Groß-/Kleinschreibung egal
+        return sorted(json.loads(TRAINER_DATEI.read_text(encoding="utf-8")), key=str.lower)
+    return []
+
+def trainerRegistrieren():
+    name = st.session_state.get("neuerTrainer", "").strip()
+    if not name:
+        st.session_state["trainerMeldung"] = ("warning", "Bitte einen Namen eingeben.")
+        return
+    if len(name) > 12:
+        st.session_state["trainerMeldung"] = ("warning", "Der Name darf höchstens 12 Zeichen lang sein (passt sonst nicht ins PDF).")
+        return
+    trainerListe = trainerLaden()
+    if name.lower() in (t.lower() for t in trainerListe):
+        st.session_state["trainerMeldung"] = ("warning", f"{name} ist bereits registriert.")
+        return
+    trainerListe.append(name)
+    TRAINER_DATEI.write_text(json.dumps(sorted(trainerListe, key=str.lower), ensure_ascii=False, indent=2), encoding="utf-8")
+    st.session_state["neuerTrainer"] = ""
+    st.session_state["trainerMeldung"] = ("success", f"{name} wurde registriert!")
+
+def trainerEntfernen():
+    name = st.session_state.get("trainerZumEntfernen")
+    if not name:
+        st.session_state["trainerMeldung"] = ("warning", "Bitte einen Trainer/eine Trainerin auswählen.")
+        return
+    trainerListe = [t for t in trainerLaden() if t != name]
+    TRAINER_DATEI.write_text(json.dumps(trainerListe, ensure_ascii=False, indent=2), encoding="utf-8")
+    st.session_state["trainerZumEntfernen"] = None
+    st.session_state["trainerMeldung"] = ("success", f"{name} wurde entfernt!")
+
+# Kalenderwoche -> Datumsfelder automatisch ausfüllen (Mo-Fr)
+def kalenderwocheGeändert():
+    eingabe = st.session_state.get("kalenderwoche", "").strip()
+    # KW gelöscht -> Datumsfelder auch leeren
+    if not eingabe:
+        for feld in ["vomDatum", "bisDatum"] + [f"datum{i}" for i in range(1, 6)]:
+            st.session_state[feld] = ""
+        return
+    if not eingabe.isdigit():
+        return
+    woche = int(eingabe)
+    heute = date.today()
+    # Das Jahr nehmen, in dem der Montag dieser KW am nächsten an heute liegt (wichtig um Silvester herum)
+    montage = []
+    for jahr in (heute.year - 1, heute.year, heute.year + 1):
+        try:
+            montage.append(date.fromisocalendar(jahr, woche, 1))
+        except ValueError:
+            pass  # z.B. KW 53 gibt es nicht in jedem Jahr
+    if not montage:
+        st.session_state["kwMeldung"] = f"KW {woche} gibt es nicht."
+        return
+    montag = min(montage, key=lambda m: abs(m - heute))
+    st.session_state["vomDatum"] = montag.strftime("%d.%m.%Y")
+    st.session_state["bisDatum"] = (montag + timedelta(days=4)).strftime("%d.%m.%Y")
+    for i in range(1, 6):
+        st.session_state[f"datum{i}"] = (montag + timedelta(days=i - 1)).strftime("%d.%m")
 
 # Gespeicherte Eingaben beim Start einmal laden
 if "geladen" not in st.session_state:
@@ -33,7 +101,8 @@ if "geladen" not in st.session_state:
     if SPEICHER_DATEI.exists():
         gespeichert = json.loads(SPEICHER_DATEI.read_text(encoding="utf-8"))
         for feld in FELDER:
-            st.session_state[feld] = gespeichert.get(feld, "")
+            wert = gespeichert.get(feld, "")
+            st.session_state[feld] = (wert or None) if feld in TRAINER_FELDER else wert
 
 col1, col2, col3 = st.columns([1,4,1])
 
@@ -41,13 +110,39 @@ col1, col2, col3 = st.columns([1,4,1])
 with col2:
     st.title("Ausbildungstagebuch")
 
+trainerListe = trainerLaden()
+
+# Trainer registrieren / entfernen
+with st.expander("Trainer/-innen verwalten"):
+    st.text_input("Name des Trainers/der Trainerin: ", max_chars=12, key="neuerTrainer")
+    st.button("Registrieren", on_click=trainerRegistrieren)
+    if trainerListe:
+        st.selectbox("Trainer/-in entfernen: ", trainerListe, index=None, key="trainerZumEntfernen", placeholder="Auswählen...")
+        st.button("Entfernen", on_click=trainerEntfernen)
+    if "trainerMeldung" in st.session_state:
+        art, text = st.session_state.pop("trainerMeldung")
+        getattr(st, art)(text)
+
+# Dropdown mit registrierten Trainern, neue Namen können auch direkt eingetippt werden
+
+def trainerAuswahl(label, key):
+    optionen = list(trainerListe)
+    # Gespeicherter Name, der nicht (mehr) registriert ist, soll trotzdem auswählbar bleiben
+    aktuell = st.session_state.get(key)
+    if aktuell and aktuell not in optionen:
+        optionen = sorted(optionen + [aktuell], key=str.lower)
+    return st.selectbox(label, optionen, index=None, key=key, placeholder="Auswählen oder eintippen...", accept_new_options=True) or ""
+
 col1, col2, col3, col4 = st.columns(4)
 
 # Allgemeine Informationen
+
 with col1:
     lehrlingName = st.text_input("Lehrling: ", key="lehrlingName")
 with col2:
-    kalenderwoche = st.text_input("Kalenderwoche: ", key="kalenderwoche")
+    kalenderwoche = st.text_input("Kalenderwoche: ", key="kalenderwoche", on_change=kalenderwocheGeändert, help="KW eingeben und Enter drücken, die Daten werden automatisch ausgefüllt.")
+    if "kwMeldung" in st.session_state:
+        st.warning(st.session_state.pop("kwMeldung"))
 with col3:
     vomDatum = st.text_input("Vom: ", max_chars=10, key="vomDatum")
 with col4:
@@ -56,7 +151,7 @@ col1, col2 = st.columns(2)
 with col1:
     gruppe = st.text_input("Gruppe: ", key="gruppe")
 with col2:
-    trainer = st.text_input("Trainer/-in: ", key="trainer")
+    trainer = trainerAuswahl("Trainer/-in: ", "trainer")
 
 col1, col2, col3, col4 = st.columns([1, 1, 2, 1])
 
@@ -64,7 +159,7 @@ col1, col2, col3, col4 = st.columns([1, 1, 2, 1])
 with col1:
     datum1 = st.text_input("Datum #1: ", max_chars=10, key="datum1")
 with col2:
-    trainer1 = st.text_input("Trainer/-in #1: ", max_chars=12, key="trainer1")
+    trainer1 = trainerAuswahl("Trainer/-in #1: ", "trainer1")
 with col3:
     tätigkeit1 = st.text_input("Tätigkeit #1: ", max_chars=125, key="tätigkeit1")
 with col4:
@@ -74,7 +169,7 @@ with col4:
 with col1:
     datum2 = st.text_input("Datum #2: ", max_chars=10, key="datum2")
 with col2:
-    trainer2 = st.text_input("Trainer/-in #2: ", max_chars=12, key="trainer2")
+    trainer2 = trainerAuswahl("Trainer/-in #2: ", "trainer2")
 with col3:
     tätigkeit2 = st.text_input("Tätigkeit #2: ", max_chars=125, key="tätigkeit2")
 with col4:
@@ -84,7 +179,7 @@ with col4:
 with col1:
     datum3 = st.text_input("Datum #3: ", max_chars=10, key="datum3")
 with col2:
-    trainer3 = st.text_input("Trainer/-in #3: ", max_chars=12, key="trainer3")
+    trainer3 = trainerAuswahl("Trainer/-in #3: ", "trainer3")
 with col3:
     tätigkeit3 = st.text_input("Tätigkeit #3: ", max_chars=125, key="tätigkeit3")
 with col4:
@@ -94,7 +189,7 @@ with col4:
 with col1:
     datum4 = st.text_input("Datum #4: ", max_chars=10, key="datum4")
 with col2:
-    trainer4 = st.text_input("Trainer/-in #4: ", max_chars=12, key="trainer4")
+    trainer4 = trainerAuswahl("Trainer/-in #4: ", "trainer4")
 with col3:
     tätigkeit4 = st.text_input("Tätigkeit #4: ", max_chars=125, key="tätigkeit4")
 with col4:
@@ -104,7 +199,7 @@ with col4:
 with col1:
     datum5 = st.text_input("Datum #5: ", max_chars=10, key="datum5")
 with col2:
-    trainer5 = st.text_input("Trainer/-in #5: ", max_chars=12, key="trainer5")
+    trainer5 = trainerAuswahl("Trainer/-in #5: ", "trainer5")
 with col3:
     tätigkeit5 = st.text_input("Tätigkeit #5: ", max_chars=125, key="tätigkeit5")
 with col4:
@@ -344,6 +439,18 @@ def createPDF(lehrlingName, kalenderwoche, vomDatum, bisDatum, gruppe, trainer, 
     buffer.seek(0)
     return buffer.read()
 
+# Sicherheitsabfrage, damit nicht aus Versehen alles weg ist
+@st.dialog("Alle Eingaben löschen?")
+def löschenBestätigen():
+    st.write("Alle Felder und die gespeicherten Eingaben werden gelöscht. Registrierte Trainer/-innen bleiben erhalten.")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Ja, alles löschen", type="primary", on_click=eingabenLöschen, use_container_width=True):
+            st.rerun()
+    with col2:
+        if st.button("Abbrechen", use_container_width=True):
+            st.rerun()
+
 if st.button("Eingaben speichern für später", on_click=eingabenSpeichern):
     st.success("Eingaben gespeichert! Sie werden beim nächsten Start automatisch geladen.")
 
@@ -358,3 +465,7 @@ if st.button("Erstelle PDF (Download)"):
         on_click=eingabenLöschen,
         use_container_width=True
         )
+
+st.divider()
+if st.button("Alle Eingaben löschen", use_container_width=True):
+    löschenBestätigen()
