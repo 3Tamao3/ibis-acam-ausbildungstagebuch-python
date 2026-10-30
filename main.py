@@ -10,16 +10,12 @@ from reportlab.platypus import Paragraph, Frame
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.styles import ParagraphStyle
 
-#125 char only for tätigkeiten, 10 char datum, 100 char bemerkung
-
-# Eingaben zwischenspeichern
 SPEICHER_DATEI = Path(__file__).parent / "gespeicherte_eingaben.json"
 
 FELDER = ["lehrlingName", "kalenderwoche", "vomDatum", "bisDatum", "gruppe", "trainer"]
 for i in range(1, 6):
     FELDER += [f"datum{i}", f"trainer{i}", f"tätigkeit{i}", f"bemerkungen{i}"]
 
-# Trainer-Felder sind Dropdowns, leer = None statt ""
 TRAINER_FELDER = ["trainer"] + [f"trainer{i}" for i in range(1, 6)]
 
 def eingabenSpeichern():
@@ -31,12 +27,10 @@ def eingabenLöschen():
     for feld in FELDER:
         st.session_state[feld] = None if feld in TRAINER_FELDER else ""
 
-# Trainer-Liste
 TRAINER_DATEI = Path(__file__).parent / "trainer.json"
 
 def trainerLaden():
     if TRAINER_DATEI.exists():
-        # A -> Z, Groß-/Kleinschreibung egal
         return sorted(json.loads(TRAINER_DATEI.read_text(encoding="utf-8")), key=str.lower)
     return []
 
@@ -67,10 +61,8 @@ def trainerEntfernen():
     st.session_state["trainerZumEntfernen"] = None
     st.session_state["trainerMeldung"] = ("success", f"{name} wurde entfernt!")
 
-# Kalenderwoche -> Datumsfelder automatisch ausfüllen (Mo-Fr)
 def kalenderwocheGeändert():
     eingabe = st.session_state.get("kalenderwoche", "").strip()
-    # KW gelöscht -> Datumsfelder auch leeren
     if not eingabe:
         for feld in ["vomDatum", "bisDatum"] + [f"datum{i}" for i in range(1, 6)]:
             st.session_state[feld] = ""
@@ -79,13 +71,12 @@ def kalenderwocheGeändert():
         return
     woche = int(eingabe)
     heute = date.today()
-    # Das Jahr nehmen, in dem der Montag dieser KW am nächsten an heute liegt (wichtig um Silvester herum)
     montage = []
     for jahr in (heute.year - 1, heute.year, heute.year + 1):
         try:
             montage.append(date.fromisocalendar(jahr, woche, 1))
         except ValueError:
-            pass  # z.B. KW 53 gibt es nicht in jedem Jahr
+            pass
     if not montage:
         st.session_state["kwMeldung"] = f"KW {woche} gibt es nicht."
         return
@@ -95,7 +86,6 @@ def kalenderwocheGeändert():
     for i in range(1, 6):
         st.session_state[f"datum{i}"] = (montag + timedelta(days=i - 1)).strftime("%d.%m")
 
-# Gespeicherte Eingaben beim Start einmal laden
 if "geladen" not in st.session_state:
     st.session_state["geladen"] = True
     if SPEICHER_DATEI.exists():
@@ -106,13 +96,11 @@ if "geladen" not in st.session_state:
 
 col1, col2, col3 = st.columns([1,4,1])
 
-# Titel
 with col2:
     st.title("Ausbildungstagebuch")
 
 trainerListe = trainerLaden()
 
-# Trainer registrieren / entfernen
 with st.expander("Trainer/-innen verwalten"):
     st.text_input("Name des Trainers/der Trainerin: ", max_chars=12, key="neuerTrainer")
     st.button("Registrieren", on_click=trainerRegistrieren)
@@ -123,19 +111,14 @@ with st.expander("Trainer/-innen verwalten"):
         art, text = st.session_state.pop("trainerMeldung")
         getattr(st, art)(text)
 
-# Dropdown mit registrierten Trainern, neue Namen können auch direkt eingetippt werden
-
 def trainerAuswahl(label, key):
     optionen = list(trainerListe)
-    # Gespeicherter Name, der nicht (mehr) registriert ist, soll trotzdem auswählbar bleiben
     aktuell = st.session_state.get(key)
     if aktuell and aktuell not in optionen:
         optionen = sorted(optionen + [aktuell], key=str.lower)
     return st.selectbox(label, optionen, index=None, key=key, placeholder="Auswählen oder eintippen...", accept_new_options=True) or ""
 
 col1, col2, col3, col4 = st.columns(4)
-
-# Allgemeine Informationen
 
 with col1:
     lehrlingName = st.text_input("Lehrling: ", key="lehrlingName")
@@ -155,7 +138,6 @@ with col2:
 
 col1, col2, col3, col4 = st.columns([1, 1, 2, 1])
 
-# Tätigkeiten und Bemerkungen #1
 with col1:
     datum1 = st.text_input("Datum #1: ", max_chars=10, key="datum1")
 with col2:
@@ -165,7 +147,6 @@ with col3:
 with col4:
     bemerkungen1 = st.text_input("Bemerkungen #1: ", max_chars=100, key="bemerkungen1")
 
-# Tätigkeiten und Bemerkungen #2
 with col1:
     datum2 = st.text_input("Datum #2: ", max_chars=10, key="datum2")
 with col2:
@@ -175,7 +156,6 @@ with col3:
 with col4:
     bemerkungen2 = st.text_input("Bemerkungen #2: ", max_chars=100, key="bemerkungen2")
 
-# Tätigkeiten und Bemerkungen #3
 with col1:
     datum3 = st.text_input("Datum #3: ", max_chars=10, key="datum3")
 with col2:
@@ -185,7 +165,6 @@ with col3:
 with col4:
     bemerkungen3 = st.text_input("Bemerkungen #3: ", max_chars=100, key="bemerkungen3")
 
-# Tätigkeiten und Bemerkungen #4
 with col1:
     datum4 = st.text_input("Datum #4: ", max_chars=10, key="datum4")
 with col2:
@@ -195,7 +174,6 @@ with col3:
 with col4:
     bemerkungen4 = st.text_input("Bemerkungen #4: ", max_chars=100, key="bemerkungen4")
 
-# Tätigkeiten und Bemerkungen #5
 with col1:
     datum5 = st.text_input("Datum #5: ", max_chars=10, key="datum5")
 with col2:
@@ -205,9 +183,7 @@ with col3:
 with col4:
     bemerkungen5 = st.text_input("Bemerkungen #5: ", max_chars=100, key="bemerkungen5")
 
-# PDF erstellen
 def createPDF(lehrlingName, kalenderwoche, vomDatum, bisDatum, gruppe, trainer, datum1, trainer1, tätigkeit1, bemerkungen1, datum2, trainer2, tätigkeit2, bemerkungen2, datum3, trainer3, tätigkeit3, bemerkungen3, datum4, trainer4, tätigkeit4, bemerkungen4, datum5, trainer5, tätigkeit5, bemerkungen5) -> bytes:
-    """Creates a simple PDF in memory and returns its bytes."""
     buffer = BytesIO()
 
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
@@ -224,8 +200,6 @@ def createPDF(lehrlingName, kalenderwoche, vomDatum, bisDatum, gruppe, trainer, 
     style.fontName = "Helvetica"
     style.fontSize = 14
     style.leading = 16
-
-    #Liste(Index) für Allgemeine Info, Datum, Trainer, Tätigkeiten und Bemerkungen
 
     top_texts = [
         Paragraph(lehrlingName, style),
@@ -268,10 +242,6 @@ def createPDF(lehrlingName, kalenderwoche, vomDatum, bisDatum, gruppe, trainer, 
     Paragraph(bemerkungen5, style)
     ]
 
-    #Debug-> showBoundary = 1 zeigt die Rahmen der Box
-
-    # x, y position/koordinaten
-    # width, height der Box
     lehrlingNameFrame = Frame(
         122, 455,    
         165, 30,
@@ -303,27 +273,27 @@ def createPDF(lehrlingName, kalenderwoche, vomDatum, bisDatum, gruppe, trainer, 
     )
 
     datumFrame1 = Frame(
-        62, 388,   
+        82, 388,   
         102, 31,    
     )
 
     datumFrame2 = Frame(
-        62, 326,
+        82, 326,
         102, 31,
     )
 
     datumFrame3 = Frame(
-        62, 264,
+        82, 264,
         102, 31,
     )
 
     datumFrame4 = Frame(
-        62, 202,
+        82, 202,
         102, 31,
     )
 
     datumFrame5 = Frame(
-        62, 140,
+        82, 140,
         102, 31,
     )
 
@@ -439,7 +409,6 @@ def createPDF(lehrlingName, kalenderwoche, vomDatum, bisDatum, gruppe, trainer, 
     buffer.seek(0)
     return buffer.read()
 
-# Sicherheitsabfrage, damit nicht aus Versehen alles weg ist
 @st.dialog("Alle Eingaben löschen?")
 def löschenBestätigen():
     st.write("Alle Felder und die gespeicherten Eingaben werden gelöscht. Registrierte Trainer/-innen bleiben erhalten.")
