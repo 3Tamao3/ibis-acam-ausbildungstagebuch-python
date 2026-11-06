@@ -1,17 +1,35 @@
-﻿# ibis-ausbildungstage-python
+# ibis-ausbildungstage-python
 
 A Streamlit web app that creates formatted apprenticeship log PDFs.
 
-Req.: streamlit, Reportlab
+## Features
 
-Streamlit -> python -m pip install streamlit
+- Fill in the weekly log and download it as a PDF
+- Enter a calendar week to fill in the dates automatically
+- Register and remove trainers for quick selection
+- Save your inputs for later or clear them all at once
 
-Reportlab -> python -m pip install reportlab
+## Requirements
 
-How to Start/execute -> python -m streamlit run main.py
+- Python 3
+- [Streamlit](https://streamlit.io/)
+- [ReportLab](https://www.reportlab.com/)
+
+```bash
+python -m pip install streamlit reportlab
+```
+
+## Getting Started
+
+```bash
+python -m streamlit run main.py
+```
+
+On Windows, you can also double-click `click_me_to_start.bat`.
+
+## Screenshots
 
 <img width="747" height="867" alt="image" src="https://github.com/user-attachments/assets/5a4701b2-43e1-4871-9e74-e236894d903d" />
-
 
 <img width="695" height="397" alt="image" src="https://github.com/user-attachments/assets/cdc788f5-b820-4dd0-9c7d-8cb0ea06112f" />
 
